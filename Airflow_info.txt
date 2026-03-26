@@ -1,0 +1,335 @@
+Airflow is built on several key components that work together to orchestrate workflows (DAGs).
+
+Core Components of Airflow
+1. Scheduler
+
+The brain of Airflow.
+
+Monitors DAGs and tasks, determines their dependencies, and decides what needs to run and when.
+
+Sends tasks to the Executor for execution.
+
+2. Executor
+
+Decides how tasks run (locally, on Celery workers, on Kubernetes Pods, etc.).
+
+Examples:
+
+SequentialExecutor → one task at a time (dev only).
+
+LocalExecutor → parallel tasks on the same machine.
+
+CeleryExecutor → distributed workers.
+
+KubernetesExecutor → each task in a Pod.
+
+3. Worker(s)
+
+The actual machines/containers where tasks run.
+
+If you use CeleryExecutor, Celery workers pick up tasks from a message queue and execute them.
+
+If you use KubernetesExecutor, each worker task runs in its own Pod.
+
+4. Webserver (Airflow UI)
+
+A Flask-based web app that provides a UI to monitor DAGs, trigger runs, check logs, and manage tasks.
+
+Useful for debugging and workflow visibility.
+
+5. Metadata Database
+
+Stores all state information:
+
+DAG runs
+
+Task instances
+
+Variables & Connections
+
+XComs (cross-task communication)
+
+Supported DBs: PostgreSQL, MySQL (SQLite for local dev only).
+
+Airflow doesn’t store results here, only metadata.
+
+6. DAGs (Directed Acyclic Graphs)
+
+User-defined workflows written in Python.
+
+Define the order of execution and dependencies of tasks.
+
+Each DAG = a pipeline (ETL, ML training, reporting, etc.).
+
+7. Operators
+
+Building blocks of DAGs.
+
+Define what a task does (e.g., run Python, Bash, Spark, SQL, Kubernetes Pod, etc.).
+
+Examples:
+
+PythonOperator
+
+BashOperator
+
+SparkSubmitOperator
+
+KubernetesPodOperator
+
+8. Tasks
+
+Instances of Operators inside a DAG.
+
+Smallest unit of execution in Airflow.
+
+Example: PythonOperator(task_id="extract", python_callable=extract_data).
+
+9. Message Broker (optional, for Celery Executor)
+
+Used when scaling with CeleryExecutor.
+
+Handles task queueing and dispatching.
+
+Examples: Redis, RabbitMQ.
+
+10. Plugins & APIs
+
+Extend Airflow with custom logic (operators, sensors, hooks).
+
+Airflow also provides a REST API for programmatic DAG management.
+
+✅ Summary (Airflow Architecture in One View)
+
+Scheduler → Decides what to run.
+
+Executor → Decides how to run.
+
+Workers → Actually run tasks.
+
+Webserver → UI for users.
+
+Metadata DB → Stores state.
+
+DAGs + Operators + Tasks → Define workflows.
+
+(Optional) Message Broker → Needed for CeleryExecutor.
+
+
+Types of Executors in Airflow
+1. SequentialExecutor
+
+Default executor (when you first install Airflow).
+
+Runs one task at a time in sequence.
+
+Useful for: Development, debugging.
+
+Not for production.
+
+2. LocalExecutor
+
+Runs tasks in parallel on the same machine using multiprocessing.
+
+No external dependencies like Celery or Kubernetes.
+
+Useful for: Small-scale production, single-node setups.
+
+Limitation: Can’t scale beyond one machine.
+
+3. CeleryExecutor
+
+Tasks are distributed to Celery workers using a message broker (Redis or RabbitMQ).
+
+Highly scalable across multiple machines.
+
+Useful for: Production with large workloads.
+
+Limitation: You must manage Celery + broker infrastructure.
+
+4. KubernetesExecutor
+
+Each task runs in its own Kubernetes Pod.
+
+Provides full isolation (each task can have its own Docker image, resources, environment).
+
+Auto-scales based on workload.
+
+Useful for: Cloud-native, large-scale workloads.
+
+Limitation: Needs Kubernetes cluster.
+
+5. CeleryKubernetesExecutor (Hybrid)
+
+Combination of CeleryExecutor and KubernetesExecutor.
+
+Some tasks run on Celery workers, others on Kubernetes Pods.
+
+Useful for: Migration from Celery → Kubernetes or hybrid environments.
+
+6. DaskExecutor
+
+Uses Dask (Python parallel computing library) as the backend.
+
+Can scale to a Dask cluster for parallelism.
+
+Rarely used in practice.
+
+7. DebugExecutor
+
+Runs tasks synchronously in the same process.
+
+Mostly for testing and debugging.
+
+8. MesosExecutor (⚠️ Legacy / rarely used now)
+
+Runs tasks on Apache Mesos cluster.
+
+Considered outdated (Kubernetes is preferred).
+
+✅ Quick Comparison
+Executor	Parallel?	Scalable?	Infra Needs
+Sequential	❌ No	❌ No	None
+Local	✅ Yes (single machine)	❌ No	None
+Celery	✅ Yes	✅ Yes (multi-node)	Broker (Redis/RabbitMQ) + Workers
+Kubernetes	✅ Yes	✅ Yes (cloud-native)	Kubernetes cluster
+CeleryKubernetes	✅ Yes	✅ Yes (hybrid)	Celery + Kubernetes
+Dask	✅ Yes	✅ Yes	Dask cluster
+Debug	❌ No	❌ No	None (testing only)
+Mesos	✅ Yes	✅ Yes	Apache Mesos cluster (legacy)
+
+👉 In real-world projects today:
+
+Small/local: LocalExecutor
+
+Enterprise: CeleryExecutor
+
+Cloud-native: KubernetesExecutor (or CeleryKubernetes)
+
+
+
+
+Types of Operators in Airflow
+
+Operators are generally grouped into categories:
+
+1. Base Operators
+
+DummyOperator (now EmptyOperator) → placeholder/no-op task
+
+PythonOperator → run a Python function
+
+BranchPythonOperator → run one branch of tasks based on a condition
+
+ShortCircuitOperator → stop downstream tasks if condition is False
+
+SubDagOperator → run a sub-DAG (⚠️ deprecated, better to use TaskGroups)
+
+2. Bash / Shell Operators
+
+BashOperator → run a Bash command/script
+
+SSHOperator → run commands on a remote server over SSH
+
+3. Python & Data Processing Operators
+
+PythonOperator → run Python code
+
+DockerOperator → run a task inside a Docker container
+
+KubernetesPodOperator → run a task in a Kubernetes Pod
+
+SparkSubmitOperator → submit a Spark job
+
+DataprocSubmitJobOperator → run jobs on Google Cloud Dataproc
+
+4. Transfer Operators (Data movement)
+
+Move data between systems:
+
+S3ToRedshiftOperator
+
+S3ToSnowflakeOperator
+
+S3ToBigQueryOperator
+
+GCSToBigQueryOperator
+
+AzureDataLakeStorageUploadOperator
+
+FTPToS3Operator
+
+Many more for ETL pipelines.
+
+5. Database Operators
+
+PostgresOperator
+
+MySqlOperator
+
+SqliteOperator
+
+SnowflakeOperator
+
+BigQueryOperator
+
+MSSQLOperator
+
+OracleOperator
+
+RedshiftSQLOperator
+➡️ These execute SQL queries on the corresponding databases.
+
+6. Branching & Control Flow Operators
+
+BranchPythonOperator → conditional branching
+
+BranchSQLOperator → branching based on SQL query result
+
+ShortCircuitOperator → skip downstream if condition is False
+
+7. Sensors (special kind of Operator)
+
+Wait for a condition before proceeding:
+
+ExternalTaskSensor → wait for another DAG/task
+
+FileSensor → wait for a file
+
+S3KeySensor → wait for an object in S3
+
+TimeSensor → wait until a certain time
+
+HttpSensor → wait for an API response
+
+8. Email & Notification Operators
+
+EmailOperator → send emails
+
+SlackAPIOperator → send Slack messages
+
+MS Teams Operator (community providers)
+
+9. Cloud-specific Operators
+
+AWS: S3CreateBucketOperator, RedshiftOperator, EMRStepOperator
+
+GCP: BigQueryOperator, DataprocOperator, GCSOperator
+
+Azure: AzureDataFactoryRunPipelineOperator, AzureDataLakeStorageOperator
+
+✅ Summary (Operator Categories)
+
+Core Operators → Python, Bash, Dummy
+
+Data Movement Operators → S3, GCS, ADLS, FTP, etc.
+
+Database Operators → Postgres, MySQL, BigQuery, Snowflake, etc.
+
+Control Flow Operators → Branch, ShortCircuit
+
+Sensors → File, S3, ExternalTask, Time
+
+Cloud-Specific Operators → AWS, GCP, Azure
+
+Other → DockerOperator, KubernetesPodOperator, SparkSubmitOperator
