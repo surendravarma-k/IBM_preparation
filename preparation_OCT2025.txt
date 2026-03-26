@@ -1,0 +1,981 @@
+customer data:
+Normalize customer names Input: " john DOE " → "John Doe"
+Mask sensitive info
+
+bank transformations/validations.
+Standardize date formats (DD/MM/YYYY → YYYY-MM-DD)
+Schema validation
+Null handling
+Deduplication
+
+roles and resposibilities.
+requirement gethering
+how will you design best pipelines 
+how will you debugn datapline deployment failure.
+check list before deployment.
+how will you handle duplicate data while writing and already there in table.
+how will you check file arrival have data or not.
+how will you act on data correption on prod table(how will you check/rectify/reload data.)
+
+
+what is star schema
+lazy evaluation
+
+lineage is ametadata, the recoed of  how an rdd or df was derived, the hostory of transforation applied on the df or rdd. 
+spark will use the lineage for faulttolerence.
+
+check pointing is a process of saving the rdd or df in a reliable storage systemd and break the lineage for long running job or itrrative algorithams 
+to reduce recomputations.
+
+
+word count.
+pivot
+explode
+group by
+window function practice(continueous missing)
+memory clculation
+
+
+
+worker nodes 5 with 16 cores and 64 GB ram.
+partition size is 128MB
+
+100gb file 
+each partition with 128MB so 800 partitions.
+800 tasks
+
+for goo parallelsium will take 4 cores per executor.
+ so 4 excutor per node.total 5*4= 20executors will process 80 tasks parallelly.
+ 64 BG so will take out for os/demon 10 -20% remaining 50GB
+ 50/4=12.5GB per executor.
+ execute 80 tasks parallel and remining in batch mode.
+
+rdd 
+rdd=spark.sparkContext.textFile("path")
+
+rdd_word=rdd.flatMap(lambda x:x.split(' '))
+rdd_pair=rdd_word.map(lambda x:(x,1))
+rdd_count=rdd_pair.redudeByKay(lambda x,y:(x+y))
+
+for key,value in rdd_count.collect():
+  print(key,vaue)
+  
+  
+df=spark.read.text("path")
+df=df.select(explode(split('value','')).alias('word'))
+df=df.groupBy('word').count()
+
+df.show()
+
+
+df.alias('target').merge(df1.alias('source'),"target.id=source.id and target.name=source.name")
+.whenMachedUpdate("target.falg='Y' and target.region<>source.region",
+  set={"end_dt":"current() -intervel 1day","flag":"'N'"
+  }).whenNotMatchedInsertAll().execute()
+  
+merge into targettable using source on target.id=source.id when mantced and target.name<> source.name then update set (target.end_dt=current_date(),target.falg='N')
+when not matched then insert() values()
+
+select id from(
+select id,row_number() over(partition  by id,order by date) as rnk from employee) emp where rnk >1;
+
+✅ 🔹 Spark Pipeline Pre-Deployment Checklist (PySpark + Databricks)
+🧩 1. Code Quality & Standards
+Check	Description
+Code Review Done	Peer-reviewed for logic, coding standards, error handling, and Spark best practices.
+Modular Code	Logic is organized into reusable functions/modules instead of monolithic notebooks.
+No Hardcoded Values	All paths, dates, environment names, credentials are parameterized (use widgets, configs, or environment variables).
+Config-driven Design	Externalize configurations (like input/output paths, table names, thresholds) into YAML/JSON/parameter tables.
+Proper Comments & Logging	Key steps are logged using log4j or Python logging. Avoid print statements in production.
+Version Control	Code pushed and tagged properly in Git (branch → PR → merge → tag).
+⚙️ 2. Environment & Configuration Readiness
+Check	Description
+Cluster Configuration Validated	Check driver/executor memory, cores, and autoscaling settings appropriate for data volume.
+Environment-specific Configs	Validate prod paths (e.g., ADLS/S3/HDFS) and connection strings point to production datasets.
+Secrets Management	All credentials fetched from Databricks Secrets / Key Vault — no credentials in code.
+Dependencies Installed	All required Python packages are installed in the cluster or included in a .whl or requirements.txt.
+Job Parameters	Verify pipeline parameters are dynamic (e.g., date, batch_id, ingestion_type).
+🧮 3. Data Validation Checks
+Check	Description
+Schema Validation	Verify schema consistency between source and target tables.
+Null/Bad Data Handling	Ensure logic gracefully handles missing or malformed records.
+Duplicate Handling	Validate deduplication logic is working as expected.
+Late/Incremental Data Logic	Test logic for late-arriving or delta loads (SCD, watermark).
+Partition Strategy	Confirm partition columns are chosen properly to avoid skew and optimize reads/writes.
+🚀 4. Performance Optimization
+Check	Description
+Repartitioning Done Wisely	Avoid unnecessary shuffles; repartition based on data volume and downstream usage.
+Broadcast Joins Used Correctly	Broadcast small lookup DataFrames instead of large shuffles.
+Cache/Persist Used Judiciously	Used only when reused multiple times — unpersist when done.
+File Sizes Tuned	Target output file sizes between 100–300 MB for optimal performance.
+Avoid Collect/Show	Never use collect() or show() on large datasets in production code.
+Adaptive Query Execution (AQE)	Enabled for dynamic optimization of joins and partitions.
+🧰 5. Error Handling & Recovery
+Check	Description
+Try/Except Blocks	Wrapped critical logic in exception handling to log and fail gracefully.
+Audit / Control Tables	Insert job metadata (start_time, end_time, record_count, status, error_msg).
+Idempotent Design	Pipeline can be safely re-run without causing data duplication or corruption.
+Checkpoint / Commit Strategy	For streaming or SCD jobs — confirm checkpoints, commit logic handled properly.
+📦 6. Testing in Lower Environment
+Check	Description
+Unit Tests Passed	Test key transformation functions independently.
+Integration Tests	Test full data flow with staging → silver → gold transitions.
+Data Volume Simulation	Run with realistic data sizes to test performance and scalability.
+Validation Reports	Validate record counts, totals, business rules between source and target.
+🕒 7. Scheduling & Orchestration
+Check	Description
+Job Parameters in Airflow/ADF	Ensure DAG or ADF pipeline parameters are dynamic (dates, table names).
+Dependency Handling	Upstream/downstream job triggers defined correctly.
+Retry & Timeout Policies	Defined in Airflow DAG or Databricks job settings.
+Alerts & Monitoring	Email/Slack alerts configured for failures and long runtimes.
+🧑‍💻 8. Access Control & Security
+Check	Description
+Least Privilege Access	Ensure Spark service principals / ADF Managed Identity have minimal required access.
+Data Encryption	Check encryption at rest and in transit (ADLS, DBFS).
+Row/Column-Level Security (if applicable)	Enforced for sensitive datasets.
+Audit Logging	Access logs and operation logs enabled for traceability.
+📊 9. Validation After Deployment
+Check	Description
+Smoke Test Run in Prod	Run small validation batch to confirm success.
+Compare Record Counts	Validate data count & checksums with lower environment.
+Monitor First Few Runs	Closely observe first 2–3 production runs for runtime and data integrity.
+🏁 10. Documentation & Handover
+Check	Description
+Runbook Prepared	Steps to execute, rollback, monitor, and restart jobs.
+Pipeline Flow Documented	Source → Staging → Silver → Gold mapping, along with dependencies.
+Performance Benchmarks Recorded	Before and after optimization runtimes.
+Ownership & Alerts Configured	Confirm responsible owners for incident response.
+✅ Summary Flow
+Dev → Unit Test → QA/UAT → Performance Test → Code Review → Config Freeze → Approval → Prod Deployment → Smoke Test
+
+
+
+When a PySpark Databricks pipeline fails during production deployment, debugging must be structured and fast — since production downtime directly impacts business SLAs.
+
+Let’s go step-by-step with a practical and systematic debugging checklist you can follow 👇
+
+🧠 1️⃣ Identify Where the Failure Occurred
+
+Before diving into logs, first identify which layer or stage failed:
+
+Layer	Typical Issue Examples
+Deployment Level	Wrong config, missing dependency, cluster misconfiguration
+Spark Job Execution	Logic error, schema mismatch, null pointer, data skew
+Data Layer (Input/Output)	File missing, bad path, permission issue, empty dataset
+Orchestration Layer (ADF/Airflow)	Connection failure, variable not passed, timeout, dependency misfire.
+
+2️⃣ Check Databricks Job Run Logs
+
+If your pipeline runs in Databricks, go to:
+
+Databricks → Jobs → Runs → View Logs
+
+Then inspect:
+
+🔸 a) Driver Logs
+
+Shows Python exceptions and Spark execution plan.
+
+Common signs:
+
+AnalysisException: table/path not found
+
+Py4JJavaError: Spark or JVM-level error
+
+MemoryError or ExecutorLostFailure: cluster or data volume issue
+
+🔸 b) Cluster Event Logs
+
+Check if the job failed before the Spark code started (e.g., environment setup, library install failure).
+
+🔸 c) Spark UI (Job → Stages → Executors)
+
+Identify whether failure occurred at read, transformation, or write stage.
+
+Check shuffle, stage retries, skew, OOM, etc.
+
+💡 Tip: Databricks automatically links to the Spark UI in the “Run Details” page — use that to pinpoint the exact stage.
+
+⚙️ 3️⃣ Review Exception Trace in Logs
+
+Typical PySpark failure categories:
+
+Error Type	Root Cause	Fix
+AnalysisException	Missing path/table/schema mismatch	Validate input paths & table schema
+NullPointerException	Null data or missing columns	Handle nulls, validate schema
+FileNotFoundException	Input file not found	Check ingestion or path variable
+Job aborted due to stage failure	Data skew, OOM, shuffle spill	Tune partitioning, memory, caching
+Timeout / Task not serializable	Wrong broadcast, circular reference	Optimize serialization or restructure code
+Permission Denied	ADLS / Hive ACLs	Update storage ACLs or service principal role
+ModuleNotFoundError	Missing Python dependency	Reinstall via cluster init script or %pip install
+🧩 4️⃣ Check Configuration & Environment Differences
+
+Common between lower → prod migrations:
+
+Issue	What to Check
+Wrong Config Path	Verify production configs (YAML/JSON/param tables) used correctly
+Secret Scope / KeyVault Access	Check secret name differences between environments
+Cluster Version	Spark runtime version mismatch (e.g., 12.2 → 13.3)
+Library Version	PySpark, Pandas, JDBC, etc., version mismatch
+Path Variables	Ensure /mnt/prod/... not pointing to /mnt/dev/...
+Job Parameters	Missing or incorrect runtime arguments (date, table name, etc.)
+
+⚠️ Tip: Always maintain separate config files per environment and verify environment variables before deployment.
+
+🧱 5️⃣ Validate Data & Schema
+
+Data-related issues are the #1 cause of production Spark job failures.
+
+Steps:
+
+Check source data presence
+
+dbutils.fs.ls("/mnt/prod/staging/table_name/")
+
+
+Validate schema consistency
+
+df = spark.read.parquet("path")
+df.printSchema()
+
+
+Compare with expected schema (from lower env or metadata).
+
+Check for bad records / corrupt files
+
+spark.read.option("badRecordsPath", "/mnt/prod/bad_records").csv(path)
+
+🧰 6️⃣ Check Airflow / ADF Logs (if orchestrated)
+
+If Databricks job triggered via Airflow:
+
+Check Airflow logs → task instance → logs tab
+You’ll see Databricks API error (e.g., HTTP 403, Invalid Job ID, JobRunTimeout).
+
+If via ADF:
+
+Check Monitor → Pipeline Runs → Output → Error Message
+
+Common failures:
+
+Linked Service credential expired
+
+Get Metadata / Lookup activity returned null
+
+Databricks token expired
+
+🧾 7️⃣ Enable & Review Audit Tables
+
+If you maintain control/audit tables (highly recommended):
+
+Column	Description
+job_name	Pipeline name
+batch_date	Execution date
+start_ts / end_ts	Job timings
+status	SUCCESS / FAILED
+error_msg	Captured exception
+record_count	Input/output counts
+
+You can then easily filter failed jobs:
+
+SELECT * FROM audit_table WHERE status = 'FAILED' ORDER BY end_ts DESC;
+
+🔄 8️⃣ Run in Debug Mode or Replay in Lower Env
+
+Once you identify the failing notebook/script:
+
+Run the same code block in dev/UAT with prod parameters.
+
+Use try/except in notebook to print variable values & stage counts.
+
+Example:
+
+try:
+    df = spark.read.parquet(prod_path)
+    print(f"Records read: {df.count()}")
+except Exception as e:
+    print(f"Error reading file: {str(e)}")
+
+
+This helps confirm if issue is data-specific or environment-specific.
+
+🧑‍💻 9️⃣ Cluster & Resource Issues
+
+Check if cluster terminated mid-run (Databricks UI → cluster logs).
+
+Check autoscaling, memory, and disk spill metrics.
+
+Increase spark.driver.memory or spark.sql.shuffle.partitions if necessary.
+
+📢 🔟 Communicate & Document
+
+Once you isolate the cause:
+
+Update your runbook or incident record with:
+
+Root cause
+
+Resolution steps
+
+Preventive action
+
+Add monitoring or alert for early detection next time.
+
+🚦 Example Debug Flow
+Deployment failed → Check Databricks run logs →
+Driver logs show AnalysisException → Root cause = wrong ADLS path →
+Fix config → re-run in UAT → verify audit table → redeploy.
+
+------------------
+from pyspark.window import Window
+from pyspark.functions import lag,lead,col
+
+window=Window.partitionBy('cust_id').orderby ("txn_date") 
+df=df.withColumn('pretrx_amnt',lag(amount).over(window))\
+     .withColumn('nxt_amnt',lead(amount).over(window))\ 
+	 .withColumn('diff_amt',col("amount") -col("pretrx_amnt"))\
+	 .winColumn('running_total',sum("amount").over(window))
+-------------------------
+from pyspark.sql import SparkSession
+
+spark = SparkSession.builder.getOrCreate()
+
+df = spark.read.csv("/mnt/stage/customer.csv", header=True, inferSchema=True)
+
+# Find duplicates
+duplicate_rows = df.groupBy(df.columns).count().filter("count > 1")
+
+duplicate_rows.show()
+
+
+groupBy(df.columns) → groups by all columns.
+
+count > 1 → identifies rows appearing multiple times.
+
+
+Case 2: Duplicate Based on Business Key
+
+If duplicates are defined based on specific columns (say customer_id, account_no):
+
+from pyspark.sql.functions import count
+
+duplicate_keys = (
+    df.groupBy("customer_id", "account_no")
+      .agg(count("*").alias("cnt"))
+      .filter("cnt > 1")
+)
+
+duplicate_keys.show()
+
+
+🧠 This shows which key combinations appear more than once.
+
+
+clean_df = df.dropDuplicates()
+
+clean_df = df.dropDuplicates(["customer_id", "account_no"])
+
+
+-----------------------------------------HR------------------------------
+I am particularly interested in Macquarie because of its strong presence in infrastructure and global markets, and its focus on innovation in financial services. I’m excited about working in a high-performance, regulated environment where data quality and system reliability are critical.
+
+Macquarie Group is a global financial services organization headquartered in Australia, known for infrastructure investments, asset management, and commodities trading. It has strong global presence and is recognized for its risk management capabilities and entrepreneurial culture.
+
+-----------Tell me about a time you led a team.
+In my previous project, I was leading a team of 4 data engineers for building a data pipeline migration from on-premise to Databricks.
+We had to migrate multiple legacy ETL jobs to a cloud-based PySpark solution within a tight 3-month deadline. The challenge was that the team had limited exposure to Databricks and Spark optimization.
+
+As the senior member, I was responsible for:
+Designing the overall architecture
+Distributing tasks
+Ensuring code quality
+Meeting delivery timelines
+Coordinating with stakeholders
+
+I divided the migration into phases:
+
+Data ingestion
+Transformation logic rewrite in PySpark
+Optimization and testing
+Conducted short knowledge-sharing sessions on Spark optimization and Delta Lake
+Introduced code review practices
+Created reusable framework components
+Set up daily 15-minute sync meetings
+Monitored progress using JIRA
+When one team member struggled with Spark joins performance, I paired with him and helped optimize using partitioning and broadcast joins.
+
+We completed the migration 2 weeks before deadline.
+Improved job performance by 35%.
+Reduced infrastructure cost by optimizing cluster usage.
+The solution became a reusable framework for other teams.
+
+-------------How do you handle team conflicts
+In my experience, team conflicts usually arise due to diffeences in technical approachs, priority misunderstandings, or workload pressure
+When a conflict happens, I follow a structured approach
+I speak individually with the team members involved to understand their perspective without bias. I focus on facts, not emotions.
+I remind the team that our shared objective is delivering a reliable solution on time — not proving who is right.
+For example, in one project, two team members disagreed on whether to use a complex SQL approach or rewrite the logic in PySpark for better scalability.
+Instead of debating opinions, I suggested we benchmark both approaches with sample data and compare performance.
+Execution time
+Resource usage
+Maintainability
+The results clearly showed that the PySpark version was more scalable.
+I emphasize that disagreement is healthy, but communication must remain professional.
+The conflict was resolved without escalation, and the team appreciated that the decision was based on objective data rather than hierarchy.
+
+I handle team conflicts by first understanding both perspectives privately, then bringing the discussion back to project goals. I prefer data-driven decisions instead of opinions. I encourage respectful communication and focus on what benefits the system and business
+
+------------------------How do you provide constructive feedback?
+I make sure the person knows the goal is improvement, not criticism
+
+I believe constructive feedback should be timely, specific, and solution-oriented. I usually follow the Situation–Behavior–Impact model to keep feedback objective. For example, during a production deployment, a schema validation step was missed, which caused downstream failures. I explained the impact and then suggested automating validation in our CI/CD pipeline. I also asked if there were blockers and offered help. My goal is always to improve processes and support team growth, not criticize individuals.
+
+or
+
+As a senior engineer, I see feedback as coaching, not criticism. I focus on behavior and impact rather than personality. I ensure the conversation is private, specific, and actionable. I also give positive feedback publicly and constructive feedback privately.
+
+
+----------------------How do you handle data pipeline failures?
+Immediate Impact Assessment
+Identify which layer failed (Bronze / Silver / Gold).
+
+Check business impact:
+Is it customer-facing?
+Is a dashboard or SLA impacted?
+Classify severity:
+Critical (production dashboard down)
+Partial failure
+Non-critical delay
+If critical, I notify stakeholders immediately.
+
+Root Cause Identification
+Orchestration Layer
+Compute Layer
+Data Quality Issues
+
+Fix Strategy
+Schema drift--Enable schema evolution / alter table
+Data skew-Repartition / salting
+
+After fixing:
+
+I will take preventive actions such as
+i will Add data quality checks
+Improve logging
+Add alerting (Slack / Email)
+Add idempotency
+Add checkpointing for streaming jobs
+Tune Spark configs
+Implement Retry Mechanism
+
+Post-Mortem & Documentation
+
+Timeline
+Root cause
+Business impact
+Permanent fix
+Preventive action
+This improves team maturity.
+
+
+In one case, a Silver layer job failed due to schema drift when a new column was added in the source. The job crashed because schema evolution was disabled.
+I analyzed logs in Databricks, identified the mismatch, enabled auto-merge, backfilled data, and added a schema validation step before write.
+I also implemented a monitoring alert so similar changes are caught early
+
+-----------------------------How do you ensure SLA compliance?-
+Clear SLA Definition (Before Building)
+First, I make sure the SLA is clearly defined:
+Data availability time (e.g., before 8 AM IST)
+Data freshness (near real-time / hourly / daily)
+Accuracy expectations
+Success rate (99.9% pipeline reliability)
+Without a clear SLA, compliance cannot be measured.
+
+Reliable Orchestration & Monitoring
+
+I use orchestration tools like:
+Apache Airflow
+Azure Data Factory
+Databricks Workflows
+
+What I implement:
+Task dependencies clearly defined
+Retry mechanism with exponential backoff
+Timeout configurations
+Parallel execution where possible
+Failure alerts (Slack / Email / PagerDuty)
+If a task fails, it retries automatically before SLA breach.
+
+Performance Optimization (Prevent Delays)
+Since you're working in Spark/Databricks roles, this part is critical.
+
+Using:
+Apache Spark
+Databricks
+I ensure:
+Efficient Transformations
+Avoid unnecessary shuffles
+Broadcast small tables
+Handle skewed joins
+Optimize partitioning
+
+Proper Cluster Sizing
+Autoscaling enabled
+Right executor memory
+Avoid under-provisioning
+🔹 Delta Optimizations
+OPTIMIZE & ZORDER
+VACUUM
+Partition pruning
+This prevents runtime spikes close to SLA deadlines.
+ Proactive Monitoring & Alerts
+I monitor:
+
+Job duration trends
+Data volume anomalies
+Failure rate
+Resource utilization
+I set threshold alerts like:
+If runtime exceeds 80% of SLA window → alert
+If data volume drops 20% → alert
+This gives buffer time before actual SLA breach.
+
+Idempotency & Recovery Plan
+To avoid SLA breaches due to reruns:
+Pipelines are idempotent
+
+Checkpointing enabled (for streaming)
+Incremental loads instead of full loads
+Backfill strategy documented
+If a job fails at 6:30 AM and SLA is 8 AM, I can safely rerun without data duplication.
+Real Production Example (Strong Interview Answer)
+
+“In one project, our SLA was 7 AM dashboard refresh. I noticed job duration was gradually increasing due to data growth.
+I analyzed Spark UI and found heavy shuffle during joins. I introduced partition tuning and broadcast joins, reducing runtime by 35%.
+I also added duration alerts at 80% SLA threshold, which helped us proactively fix performance issues before any breach.”
+
+
+“I ensure SLA compliance by defining clear SLAs, building resilient pipelines with retries and monitoring, optimizing Spark performance, setting proactive alerts, and designing idempotent pipelines so reruns don’t cause delays. I also monitor runtime trends to prevent breaches before they happen.”
+
+
+To ensure SLA compliance, I first define clear SLA requirements such as data availability and pipeline runtime. Then I design optimized and scalable pipelines using incremental processing and partitioning. I implement monitoring and alerting to detect delays or failures early. I also add data quality checks to ensure correctness, implement retry and fault-tolerant mechanisms, and maintain backfill strategies for quick recovery. Finally, I continuously monitor pipeline performance and optimize processing to ensure consistent SLA adherence
+
+
+----------------------------How do you estimate project timelines?
+
+I estimate project timelines using a structured 6-step approach to ensure accuracy and avoid surprises.
+
+1) Requirement Breakdown (Scope Clarity First)
+I start by breaking the project into:
+Source systems
+Data volume & complexity
+Transformations required
+Target tables (Bronze / Silver / Gold)
+Reporting / downstream dependencies
+SLA requirements
+If requirements are unclear, I clarify before estimating.
+❗ Never estimate with ambiguous scope.
+
+2) Task-Level Decomposition
+
+Phase	                   Example Tasks
+Ingestion					Source connection, schema validation
+Transformation				Business logic, joins, aggregations
+Storage						Delta table creation, partitioning
+Data Quality				Null checks, duplicate validation
+Orchestration				Workflow creation
+Testing						Unit + integration testing
+Deployment					CI/CD
+Documentation				Runbooks
+
+Breaking into small units improves estimation accuracy.
+
+3) Effort Estimation Technique:
+
+Historical Reference
+If similar pipeline took 5 days, I use it as a baseline.
+
+Complexity-Based Estimation
+Simple ingestion → 1–2 days
+Medium transformation → 3–5 days
+Complex business logic → 1–2 weeks
+🔹 Buffer Addition
+I add:
+15–25% Reserve time for unknown risks
+Extra buffer if source system is unstable
+
+4) Risk Identification (Very Important)
+
+I proactively evaluate risks:
+Schema drift
+Data quality issues
+Access delays
+Infrastructure provisioning delays
+Dependency on other teams
+For example, if access depends on a DBA team, I factor that time in.
+
+5) Validation with Team
+Before committing:
+I review estimates with senior engineers
+Cross-check assumptions
+Adjust based on feedback
+This reduces underestimation risk.
+
+6) Milestone-Based Planning
+Instead of giving one big date, I provide:
+Phase-wise milestones
+Early demo checkpoints
+UAT window
+Production go-live date
+This increases stakeholder confidence.
+
+In my previous project, we had to migrate 12 pipelines to Databricks. I broke the work into ingestion, transformation, testing, and deployment phases.
+Based on historical data, each pipeline required 3–4 days. Considering dependencies and risk buffer, I estimated 6 weeks total.
+We completed in 5.5 weeks because we parallelized development and reused common ingestion frameworks
+
+or
+
+I estimate timelines by breaking requirements into small tasks, using historical benchmarks, assessing complexity and risks, adding contingency buffer, and validating estimates with the team. I also plan milestone-based delivery to track progress and avoid surprises.
+
+
+------------darabricks 
+copyinto-->it will used to incremental load/ingest data from registered storage colud systems to delta tables.
+batch,small amount of data we can use.(idempotent writes)
+
+autoloader--> Auto Loader is Databricks’ incremental file ingestion mechanism built on Structured Streaming.
+detech modes : directory listing, file notification.
+df = (
+  spark.readStream
+    .format("cloudFiles")
+    .option("cloudFiles.format", "csv")
+    .load("abfss://raw@storage.dfs.core.windows.net/")
+)
+
+df.writeStream \
+  .format("delta") \
+  .option("checkpointLocation", "/mnt/checkpoint/sales") \
+  .start("/mnt/delta/sales")
+  
+cloudFiles.schemaEvolutionMode: addNewColumns,rescue,failOnNewColumns,None
+
+streaming out put modes:Append,Complete,Update
+triggered modes:processingTime="10 seconds",trigger(once=True)-Processes all available data once, then stops.,
+trigger(availableNow=True)-Processes all available data in multiple micro-batches, then stops.
+trigger(continuous="1 second")-Near real-time processing
+df.withWatermark("event_time", "10 minutes")
+
+
+delta Concurrency Handling:
+occ using handle the concurrency.
+conflit willcome on  2 jobs working on same file,smae partition,metadata change. otherwise no conflict.
+shalow clone,deep clone
+
+iquid clustring
+
+unity catalog how it will manage merge writes.
+
+generator--A generator is a special function that uses yield to produce values lazily, one at a time, instead of returning all values at once.
+
+----------------architect prospective.
+data modeling
+data modeling is a develpe structure hthe data from source reading storing in target inmiddle doing secure data transformation.
+ we have concetula model,logical ,physical.
+
+OLTP vs OLAP Modeling
+
+OLTP (Transactional Systems
+Highly normalized
+Many small tables
+Optimized for inserts/updates
+Used in banking systems
+
+OLAP (Analytics Systems)
+Denormalized
+Fact + dimension tables
+Optimized for reads
+Used in data warehouse
+
+Star Schema vs Snowflake Schema
+
+Star Schema:
+Central Fact table
+Surrounding Dimension tables
+Denormalized dimensions
+
+Pros:
+Simple queries
+Fast aggregations
+Business-friendly
+
+Cons:
+Slight redundancy
+Used in:
+Reporting layer
+Gold layer in Lakehouse
+
+Snowflake Schema:
+Normalized dimensions
+More joins
+
+Pros:
+Less redundancy
+Better storage control
+
+Cons:
+Complex queries
+Slightly slower
+
+Slowly Changing Dimensions (SCD):
+Type 1 Overwrite old data
+Type 2 Maintain history (new row)
+Type 3 Add new column for previous value
+
+Explain Star vs Snowflake Schema
+
+Star schema consists of a central fact table connected to denormalized dimension tables, optimized for query performance and simplicity. Snowflake schema normalizes dimension tables into multiple related tables, reducing redundancy but increasing join complexity. In modern analytics systems, Star schema is typically preferred for reporting due to better performance and ease of use, while Snowflake is used when storage optimization and strict normalization are priorities.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+why are you looking for a change.
+
+“I’m looking for a change for better career growth, the opportunity to work on new technologies, and to take more responsibility.
+I have learned a lot in my current organization, 
+but I feel a new role will give me broader exposure and aligns better with my long-term career goals.
+
+what are the long term goals..?
+
+To became a data architect 
+Working on Cloud Technologies & Modern Data Stack
+
+Moving into Technical Leadership
+ Client interaction, system design, and delivery ownership.
+ Driving technical solutioning
+ 
+In the long term, I want to grow into a Lead Data Engineer/Data Architect role, where I can design scalable data platforms on cloud and lead projects end-to-end. I’m continuously building my skills in Spark, Databricks, Streaming, and cloud technologies to reach that level. 
+ 
+ 
+. What do you know about our company?
+
+✅ Prepare:
+
+Company industry
+
+Products/services
+
+Revenue, reputation, awards
+
+Tech culture (if known)
+
+
+What are your salary expectations?
+
+✅ Examples:
+
+"Based on my experience and current market standards, I am expecting ₹X–₹Y LPA."
+
+"I am open for discussion if the role and growth are good."
+
+What are your strengths?
+
+Examples for Data Engineers:
+
+Strong debugging/troubleshooting
+
+Quick learner
+
+Good SQL optimization
+
+Team player
+
+What are your weaknesses?
+
+Pick a safe one:
+
+Perfectionism
+
+Taking extra responsibility
+
+Learning to say no
+✅ Show you are improving it.
+
+Are you comfortable with weekend or late hours if needed?
+
+Generally say:
+
+“If critical production support or client delivery needs it, I am flexible.”
+
+
+What do you expect from this role?
+
+“I expect a strong technical environment, opportunities to work on large-scale data pipelines, cloud platforms, and a place where I can contribute, learn and grow into a Lead/Architect role.”
+
+Final Question HR always asks: Any questions for me?
+
+Ask any 2-3 from these:
+
+✅ “Is the role mostly development, enhancement or production support?”
+✅ “Does the team work with Databricks or any cloud platform?”
+✅ “What is the career growth path for this position?”
+✅ “When can I expect the next update/offer decision?”
+
+What will you do if current company gives a counter-offer?
+
+Answer:
+“I believe change should be based on long-term growth, not temporary salary.
+So I will move forward with the company where I see learning, stability and career growth
+
+If HR asks: What is the minimum you can join for?
+
+Answer:
+“I don’t have a minimum figure. My expectation is ₹19 LPA, and I believe it matches my experience and skills.
+If everything fits well, I am open for a reasonable discussion.”
+
+Tell me about a challenging situation in your project
+
+
+Short Self-Intro (30–40 seconds)
+
+“I have 9.5 years of experience in Data Engineering.
+I work on Spark, PySpark, SQL and Databricks.
+I build end-to-end data pipelines, optimize performance, handle production issues and work directly with clients.
+Currently I am looking for a role where I can get better learning, cloud exposure and more responsibility.”
+
+
+How will you handle pressure situations and tight schedules? (Best Answer)
+
+Prioritization & Planning
+
+First, I break the work into smaller tasks, identify the critical items, and prioritize them based on impact and deadlines.
+This helps me stay focused and delivers faster results instead of getting overwhelmed.
+
+I immediately communicate with stakeholders or leads if any risk, blocker, or dependency may affect the timeline.
+Transparent communication avoids last-minute surprises and helps align expectations.
+
+I stay calm, avoid panic, and focus on solutions.
+Pressure is common in production or delivery situations, and a calm mindset helps make better decisions.
+
+If needed, I collaborate with teammates to share workload or review complex issues quickly.
+Working together reduces pressure and speeds up delivery.
+
+After the situation, I analyze what caused the pressure and improve planning for future releases.
+
+
+I handle pressure by first prioritizing the tasks and breaking them into smaller deliverables.
+I communicate proactively with the team about risks and progress.
+I stay calm, focus on solutions, and use time efficiently.
+If needed, I collaborate with teammates to speed up the delivery.
+This approach has helped me meet deadlines even during critical production situations.
+
+current project 
+go through 
+check sum 
+dash board memory calulation
+summary tbale code
+airflow.
+
+how will you crete scalable data pipelines.
+pipelines got failed with huge data problem how will you handle.
+how will you handle late arriving data.
+how will you handle missing data.
+performance optimization which you used.
+resource calculation
+
+
+“I design PySpark pipelines using a clean Bronze–Silver–Gold architecture.
+First I ingest raw data with a defined schema, then clean, dedupe, and standardize it in Silver, and finally create business-ready tables in Gold.
+I write pipelines in modular ETL functions and use Delta/Iceberg for ACID and incremental upserts.
+For performance, I use broadcast joins, smart partitioning, AQE, and caching only when the DF is reused.
+I also add logging, checkpoints, and ensure pipelines are idempotent.
+Finally, I orchestrate them using Airflow or Databricks Jobs with proper alerts and monitoring.”
+
+-----------------
+Stateless Stream Processing
+
+📌 In stateless processing, each micro-batch is processed independently without remembering any past data.
+
+Key Points
+
+No information stored from previous batches.
+
+Output depends only on the current input.
+
+Simpler & faster processing.
+
+Less memory required.
+
+Easy to scale horizontally.
+
+Example Use Cases
+Use Case	Example
+Filtering	df.filter(col("amount") > 1000)
+Mapping/Transform	df.select(...)
+Basic Aggregation per batch	df.groupBy("city").count() (without watermark)
+Example Code
+stream_df = spark.readStream.format("kafka")...
+
+filtered_df = stream_df.filter(col("status") == "SUCCESS")
+
+query = filtered_df.writeStream.format("console").start()
+
+2. Stateful Stream Processing
+
+📌 In stateful processing, Spark maintains state across micro-batches — remembers previous results to compute the next.
+
+Key Points
+
+Maintains past information using state store.
+
+Used for running aggregates & event-time processing.
+
+Requires checkpointing.
+
+Needs watermarking for cleanup.
+
+Example Use Cases
+Use Case	Example
+Running total	Count of events per user over time
+Sessionization	User session tracking by timeout
+Deduplication	Remove duplicate events
+Late data handling	Event-time windowed aggregation
+Example Code: Windowed aggregation
+aggDF = streamDF \
+    .withWatermark("event_time", "10 minutes") \
+    .groupBy(window(col("event_time"), "5 minutes"), col("user_id")) \
+    .count()
+
+query = aggDF.writeStream.outputMode("update") \
+    .option("checkpointLocation", "path/to/chk") \
+    .format("console").start()
+
+🆚 Summary Table
+Feature	Stateless	Stateful
+Remembers past?	❌ No	✔ Yes
+Uses checkpointing?	❌ No	✔ Required
+Handles late data?	❌ No	✔ Yes (with watermark)
+Performance	Fast	Slower
+Aggregations	Simple per batch	Running / window / session
+Memory usage	Low	High
+Interview Short Answer 📝
+
+Stateless processing handles each micro-batch independently without storing previous results. Examples are filtering, mapping, basic aggregation.
+Stateful processing maintains state across batches and is used for running aggregations, window functions, sessionization and deduplication. It needs checkpoint and watermark to manage state.
